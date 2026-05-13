@@ -1,0 +1,6 @@
+Artificial Intelligence (AI) and Machine Learning (ML) have rapidly evolved over the last decade. 
+Retrieval-Augmented Generation (RAG) is a technique that enhances large language models (LLMs) by 
+providing them with external, factual context before they generate a response. 
+This reduces hallucinations and ensures answers are grounded in reality. 
+Vector databases like ChromaDB are often used to store embeddings of documents so they can be 
+quickly retrieved using similarity search (e.g., Cosine Similarity).

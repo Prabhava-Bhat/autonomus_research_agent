@@ -1,0 +1,3 @@
+Autonomous Agents in Artificial Intelligence are systems capable of planning, reasoning, and executing actions without human intervention. 
+An autonomous research assistant can take a query, formulate a plan, use tools like web scrapers or vector database retrievers to gather information, and synthesize a comprehensive report.
+Tools such as LangChain or LangGraph help in orchestrating these agents. They define the 'loop' where the agent observes its environment, thinks about the next step, acts (uses a tool), and repeats until the goal is achieved.
