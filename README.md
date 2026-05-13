@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Autonomous Research Assistant
 
 An autonomous research agent built with **LangChain**, **Streamlit**, and **Ollama**. It combines Retrieval-Augmented Generation (RAG) with web scraping to provide comprehensive answers to your research questions.
@@ -37,3 +38,6 @@ streamlit run app.py
 - **Autonomous Agent**: Uses a ReAct agent to decide whether to query the local database or scrape the web.
 - **Web Scraping**: Automatically scrapes and ingests content from URLs when needed.
 - **Source Attribution**: Shows exactly which sources were used to generate the answer.
+=======
+# autonomus_research_agent
+>>>>>>> a57a48fbe2319fa25db06a2caaca045914be5e91

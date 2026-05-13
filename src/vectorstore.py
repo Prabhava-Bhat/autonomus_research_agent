@@ -48,17 +48,24 @@ class VectorStoreManager:
             return []
 
         # Stable, content-derived IDs — re-ingesting the same file is a no-op.
-        ids = [self._chunk_id(chunk.page_content) for chunk in chunks]
+        # Deduplicate within the incoming chunks to avoid DuplicateIDError.
+        seen: dict[str, object] = {}
+        for chunk in chunks:
+            cid = self._chunk_id(chunk.page_content)
+            if cid not in seen:
+                seen[cid] = chunk
+        unique_ids = list(seen.keys())
+        unique_chunks = list(seen.values())
 
         batch_size = 100
-        for i in range(0, len(chunks), batch_size):
-            batch_chunks = chunks[i : i + batch_size]
-            batch_ids = ids[i : i + batch_size]
+        for i in range(0, len(unique_chunks), batch_size):
+            batch_chunks = unique_chunks[i : i + batch_size]
+            batch_ids = unique_ids[i : i + batch_size]
             self.vector_store.add_documents(documents=batch_chunks, ids=batch_ids)
             print(f"Added batch {i // batch_size + 1} ({len(batch_chunks)} chunks)")
 
         print("Finished adding documents to ChromaDB.")
-        return ids
+        return unique_ids
 
     def get_retriever(self, k: int = 4):
         """Return a LangChain retriever interface for the vector store."""

@@ -1,29 +1,40 @@
-import os
+import re
 from langchain_ollama import ChatOllama
-from langchain.agents import create_agent
-from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from .retrieval import AdvancedRetriever
 from .scraper import WebScraper
 from .vectorstore import VectorStoreManager
 from .ingestion import DataIngestion
 
-# LangChain 1.x agents use a system prompt to define behavior.
-SYSTEM_PROMPT = """You are a professional autonomous research assistant. 
-Your goal is to provide accurate answers by using your available tools.
+SYSTEM_PROMPT = """You are a professional autonomous research assistant.
+Answer the user's question by reasoning step-by-step and using the available tools.
 
-CRITICAL INSTRUCTIONS:
-1. If a question requires specific knowledge, ALWAYS use the 'query_local_knowledge_base' tool first.
-2. If the local database doesn't have enough info, use 'scrape_website' if a URL is provided or relevant.
-3. Once you have the information from a tool, summarize it and provide a final answer to the user.
-4. Do NOT output raw JSON tool calls as your final answer. Use the tools, then answer in plain text.
+Available tools:
+- query_local_knowledge_base(query): Search the local vector database. Use this FIRST.
+- scrape_website(url): Scrape a URL for real-time information.
+
+Use the following format EXACTLY and stop after Final Answer:
+
+Thought: <your reasoning>
+Action: <tool name>
+Action Input: <tool input>
+Observation: <tool result>
+Thought: <your reasoning>
+Final Answer: <your final answer to the user>
+
+Rules:
+- Always start with querying the local knowledge base.
+- Only use scrape_website if given an explicit URL by the user.
+- Do NOT repeat an action you already took.
+- Always end with "Final Answer:" on its own line.
 """
 
 
 class ResearchAgent:
     def __init__(self, llm_model: str = "llama3"):
-        """Initialise the autonomous research agent using LangChain 1.x and Ollama."""
+        """Initialise the autonomous research agent with a manual ReAct loop.
+        Works with any Ollama model, including those without native tool calling."""
         try:
-            # ChatOllama supports tool calling natively in modern versions.
             self.llm = ChatOllama(model=llm_model, temperature=0)
         except Exception as e:
             print(f"Failed to initialise LLM: {e}. Please ensure Ollama is running.")
@@ -36,52 +47,55 @@ class ResearchAgent:
         self.scraper = WebScraper()
         self.ingestion = DataIngestion()
 
-        self.agent = self._setup_agent()
-
-    def _setup_agent(self):
-        if not self.llm:
-            return None
-
-        # Define tools using the modern @tool decorator
-        @tool
-        def query_local_knowledge_base(query: str) -> str:
-            """Search the local vector database for information on a topic. 
-            Always try this tool FIRST before scraping the web.
-            """
-            return self.retriever.get_context_string(query)
-
-        @tool
-        def scrape_website(url: str) -> str:
-            """Scrape a specific URL to obtain real-time or external information.
-            Input must be a valid URL starting with http:// or https://.
-            """
-            doc = self.scraper.scrape_url(url)
+    def _run_tool(self, action: str, action_input: str) -> str:
+        action = action.strip()
+        action_input = action_input.strip()
+        if action == "query_local_knowledge_base":
+            return self.retriever.get_context_string(action_input)
+        if action == "scrape_website":
+            doc = self.scraper.scrape_url(action_input)
             if doc:
                 chunks = self.ingestion.process_and_chunk([doc])
                 self.vectorstore_manager.add_documents(chunks)
                 return (
-                    f"Successfully scraped {url} and added {len(chunks)} chunks to the "
-                    "knowledge base. You can now query the database for information about it."
+                    f"Successfully scraped {action_input} and added {len(chunks)} chunks. "
+                    "You can now query the knowledge base for information about it."
                 )
-            return f"Failed to scrape {url}."
-
-        tools = [query_local_knowledge_base, scrape_website]
-
-        # create_agent in 1.x returns a CompiledGraph (which replaces AgentExecutor)
-        return create_agent(
-            model=self.llm,
-            tools=tools,
-            system_prompt=SYSTEM_PROMPT,
-        )
+            return f"Failed to scrape {action_input}."
+        return f"Unknown tool: {action}"
 
     def run_query(self, query: str) -> str:
-        if not self.agent:
+        if not self.llm:
             return "Agent is not initialised. Please ensure Ollama is running locally."
 
-        try:
-            # Modern agents take a messages list.
-            result = self.agent.invoke({"messages": [("user", query)]})
-            # The final response is the content of the last message in the output state.
-            return result["messages"][-1].content
-        except Exception as e:
-            return f"An error occurred during agent execution: {e}"
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=query),
+        ]
+
+        for _ in range(5):  # max iterations
+            response = self.llm.invoke(messages)
+            text = response.content
+
+            # Check for Final Answer
+            fa_match = re.search(r"Final Answer\s*:\s*(.*)", text, re.DOTALL | re.IGNORECASE)
+            if fa_match:
+                return fa_match.group(1).strip()
+
+            # Check for Action / Action Input
+            action_match = re.search(r"Action\s*:\s*(.+)", text, re.IGNORECASE)
+            input_match = re.search(r"Action Input\s*:\s*(.+)", text, re.IGNORECASE)
+
+            if action_match and input_match:
+                action = action_match.group(1).strip()
+                action_input = input_match.group(1).strip()
+                observation = self._run_tool(action, action_input)
+
+                # Append assistant turn + observation and loop
+                messages.append(AIMessage(content=text))
+                messages.append(HumanMessage(content=f"Observation: {observation}"))
+            else:
+                # Model gave a plain answer without tool use
+                return text.strip()
+
+        return "I was unable to find a conclusive answer within the allowed steps."
