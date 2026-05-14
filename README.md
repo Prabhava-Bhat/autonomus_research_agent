@@ -1,64 +1,43 @@
+<<<<<<< HEAD
 # Autonomous Research Assistant
 
-An autonomous research agent built with **LangChain**, **Streamlit**, and **Ollama**. It combines Retrieval-Augmented Generation (RAG) with a manual ReAct reasoning loop and web scraping to provide comprehensive, source-attributed answers to research questions.
+An autonomous research agent built with **LangChain**, **Streamlit**, and **Ollama**. It combines Retrieval-Augmented Generation (RAG) with web scraping to provide comprehensive answers to your research questions.
 
 ## Prerequisites
 
-1. **Install Ollama** — download from [ollama.com](https://ollama.com/).
-2. **Pull the model**:
+1. **Install Ollama**: Download and install from [ollama.com](https://ollama.com/).
+2. **Pull the Model**:
    ```bash
-   ollama pull llama3.2
+   ollama pull llama3
    ```
-3. **Start Ollama** — ensure the service is running:
-   ```bash
-   ollama serve
-   ```
+3. **Start Ollama**: Ensure the Ollama service is running (`ollama serve`).
 
 ## Setup
 
-```bash
-# 1. Create and activate a virtual environment (recommended)
-python -m venv venv
-.\venv\Scripts\activate        # Windows
-source venv/bin/activate       # macOS / Linux
+1. **Create a Virtual Environment** (optional but recommended):
+   ```bash
+   python -m venv venv
+   .\venv\Scripts\activate
+   ```
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. (Optional) Configure environment
-cp .env.example .env
-# Edit .env to change the model name, iteration limit, etc.
-```
+2. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ## Running the Application
 
+Start the Streamlit interface:
 ```bash
 streamlit run app.py
 ```
 
 ## Features
 
-- **Local RAG** — ingest text and PDF files into a local ChromaDB vector store.
-- **Autonomous Agent** — uses a ReAct loop to decide whether to query the local DB or scrape the web.
-- **Web Scraping** — scrapes and ingests content from URLs when instructed.
-- **Source Attribution** — shows exactly which sources influenced each answer.
-- **Per-step Progress** — live status panel shows each tool call the agent makes.
-- **Chat History Reset** — clear the conversation with one click from the sidebar.
-
-## Project Structure
-
-```
-suprmentrproject/
-├── app.py                  # Streamlit UI entry point
-├── src/
-│   ├── agent.py            # ReAct agent (LLM reasoning loop)
-│   ├── ingestion.py        # Document loading & chunking
-│   ├── retrieval.py        # Similarity-filtered retriever
-│   ├── scraper.py          # Web scraper
-│   └── vectorstore.py      # ChromaDB wrapper
-├── data/
-│   ├── chroma_db/          # Persisted vector store (git-ignored)
-│   └── sample_docs/        # Sample documents for demo ingestion
-├── .env.example            # Environment variable reference
-└── requirements.txt        # Python dependencies
-```
+- **Local RAG**: Ingest text and PDF files into a local ChromaDB vector store.
+- **Autonomous Agent**: Uses a ReAct agent to decide whether to query the local database or scrape the web.
+- **Web Scraping**: Automatically scrapes and ingests content from URLs when needed.
+- **Source Attribution**: Shows exactly which sources were used to generate the answer.
+=======
+# autonomus_research_agent
+>>>>>>> a57a48fbe2319fa25db06a2caaca045914be5e91

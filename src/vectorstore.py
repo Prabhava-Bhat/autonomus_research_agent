@@ -1,38 +1,26 @@
+import os
 import hashlib
-import logging
-from pathlib import Path
-
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-
-logger = logging.getLogger(__name__)
-
-# Absolute path anchored to this file so the DB is always found regardless of
-# the working directory at launch time.
-_DEFAULT_PERSIST_DIR = str(
-    Path(__file__).resolve().parent.parent / "data" / "chroma_db"
-)
 
 
 class VectorStoreManager:
     def __init__(
         self,
-        persist_directory: str = _DEFAULT_PERSIST_DIR,
+        persist_directory: str = "./data/chroma_db",
         embedding_model_name: str = "all-MiniLM-L6-v2",
     ):
         self.persist_directory = persist_directory
-        Path(self.persist_directory).mkdir(parents=True, exist_ok=True)
-
-        logger.info("Loading embedding model '%s'.", embedding_model_name)
         # HuggingFace embeddings run fully locally — no API key needed.
         self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
+
+        os.makedirs(self.persist_directory, exist_ok=True)
 
         self.vector_store = Chroma(
             collection_name="research_agent_docs",
             embedding_function=self.embeddings,
             persist_directory=self.persist_directory,
         )
-        logger.info("ChromaDB ready at '%s'.", self.persist_directory)
 
     # ------------------------------------------------------------------
     # ID helpers
@@ -40,16 +28,14 @@ class VectorStoreManager:
 
     @staticmethod
     def _chunk_id(page_content: str) -> str:
-        """Derive a stable ID from chunk content using SHA-256.
+        """Derive a stable ID from chunk content using MD5.
 
-        ChromaDB treats IDs as primary keys: a chunk with the same ID is
-        *updated* rather than duplicated, preventing silent inflation when a
-        user clicks "Ingest" multiple times.
-
-        SHA-256 is used instead of MD5 to eliminate the (admittedly small)
-        risk of hash collisions silently overwriting unrelated chunks.
+        ChromaDB treats IDs as primary keys: if a chunk with the same ID is
+        added again the existing record is *updated* rather than duplicated.
+        This prevents the silent inflation that occurred when users clicked
+        "Ingest" multiple times with random uuid4() IDs.
         """
-        return hashlib.sha256(page_content.encode("utf-8")).hexdigest()
+        return hashlib.md5(page_content.encode("utf-8")).hexdigest()
 
     # ------------------------------------------------------------------
     # Core operations
@@ -58,11 +44,11 @@ class VectorStoreManager:
     def add_documents(self, chunks: list) -> list[str]:
         """Add document chunks to the vector store, skipping exact duplicates."""
         if not chunks:
-            logger.warning("add_documents called with an empty chunk list.")
+            print("No chunks to add.")
             return []
 
         # Stable, content-derived IDs — re-ingesting the same file is a no-op.
-        # Deduplicate within the incoming batch to avoid DuplicateIDError.
+        # Deduplicate within the incoming chunks to avoid DuplicateIDError.
         seen: dict[str, object] = {}
         for chunk in chunks:
             cid = self._chunk_id(chunk.page_content)
@@ -76,11 +62,9 @@ class VectorStoreManager:
             batch_chunks = unique_chunks[i : i + batch_size]
             batch_ids = unique_ids[i : i + batch_size]
             self.vector_store.add_documents(documents=batch_chunks, ids=batch_ids)
-            logger.info(
-                "Batch %d added (%d chunks).", i // batch_size + 1, len(batch_chunks)
-            )
+            print(f"Added batch {i // batch_size + 1} ({len(batch_chunks)} chunks)")
 
-        logger.info("Done — %d unique chunk(s) stored in ChromaDB.", len(unique_chunks))
+        print("Finished adding documents to ChromaDB.")
         return unique_ids
 
     def get_retriever(self, k: int = 4):
@@ -92,6 +76,5 @@ class VectorStoreManager:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     manager = VectorStoreManager()
     print("Vector store initialised successfully.")
